@@ -1,5 +1,9 @@
 package game;
 
+import java.util.Scanner;
+
+/* A 2D Array representation of the Checkers board game.
+ */
 public class Checkers {
 
 	private char[][] board;
@@ -46,6 +50,24 @@ public class Checkers {
 		printBoard();
 	}
 
+	public static void main(String[] args) {
+		Checkers game = new Checkers();
+//		// while (!game.gameOver()) {
+//		game.makeMove("B3", "C4");
+//		game.makeMove("E6", "D5");
+//		game.setRoyal(3, 2);
+//		game.makeMove("C4", "E6");
+//		game.makeMove("C6", "D5");
+//		game.makeMove("E6", "C4");
+//		game.printBoard();
+//		game.makeMove("D5", "B3");
+//		game.printBoard();
+//		// }
+//
+//		System.out.println(game.getWinner() + " is the winner.");
+		game.start();
+	}
+
 	// Prints the current board status
 	public void printBoard() {
 		System.out.println("    A B C D E F G H");
@@ -57,35 +79,363 @@ public class Checkers {
 			System.out.println();
 		}
 
-		System.out.println("Next: " + whosMove + "'s move.");
+//		System.out.println("Next: " + whosMove + "'s move.");
 		System.out.println();
 	}
 
-	public void getMove(String from, String moveTo) {
+	// Starts the interactive game
+	public void start() {
+		Scanner scan = new Scanner(System.in);
+		String moveFrom;
+		String moveTo;
+		while (!gameOver()) {
+			// Ask for moves from user
+			System.out.print("Enter the position you want to move from " + (whosMove == 'b' ? "(Black): " : "(Red): "));
+			moveFrom = scan.next();
+			System.out.print("Enter the position you want to move to " + (whosMove == 'b' ? "(Black): " : "(Red): "));
+			moveTo = scan.next();
+			System.out.println();
 
+			// Play the move given from the user
+			if (makeMove(moveFrom, moveTo)) {
+				printBoard();
+				while (canMoveAgain(getX(moveTo), getY(moveTo))) {
+					System.out.print("You can move again, do you want to? (yes/no): ");
+					if (scan.next().equalsIgnoreCase("yes")) {
+						System.out.print("Enter the position you want to move to "
+								+ (whosMove == 'b' ? "(Black): " : "(Red): "));
+						moveFrom = scan.next();
+						System.out.println();
+						if (makeMoveSkipOnly(moveTo, moveFrom))
+							printBoard();
+						else
+							System.out.println("Invalid move, please try again (you may only skip opponent's pieces).");
+					} else {
+						break;
+					}
+				}
+
+				// Change whose move is next
+				if (whosMove == 'b')
+					whosMove = 'r';
+				else
+					whosMove = 'b';
+
+				// If an invalid move, ask the user to try again
+			} else {
+				System.out.println("Invalid move, please try again.");
+			}
+		}
+
+		scan.close();
+
+		System.out.println(getWinner() + " is the winner.");
 	}
 
-	public void makeMove(String from, String moveTo) {
+	// Performs the player's inputed move. Changes the board if its a valid move.
+	// Otherwise, does nothing.
+	public boolean makeMove(String from, String moveTo) {
 		int fromX = getX(from);
 		int fromY = getY(from);
 		int toX = getX(moveTo);
 		int toY = getY(moveTo);
 
-		if (isMoveValid(from, moveTo)) {
+		if (isMoveValid(fromX, fromY, toX, toY)) {
 			board[toX][toY] = board[fromX][fromY];
 			board[fromX][fromY] = emptySpace(fromX, fromY);
+			if (((board[fromX][fromY] == 'b' && toX == 0) || (board[fromX][fromY] == 'r' && toX == SIZE - 1))) {
+				setRoyal(toX, toY);
+			}
 
-			// Change whose move is next
-			if (whosMove == 'b')
-				whosMove = 'r';
-			else
-				whosMove = 'b';
+			return true;
 		}
 
-		// Check if canMoveAgain()
+		return false;
+	}
 
-		// Print board
-		printBoard();
+	private boolean makeMoveSkipOnly(String from, String moveTo) {
+		int fromX = getX(from);
+		int fromY = getY(from);
+		int toX = getX(moveTo);
+		int toY = getY(moveTo);
+
+		if (isMoveValidSkipOnly(fromX, fromY, toX, toY)) {
+			board[toX][toY] = board[fromX][fromY];
+			board[fromX][fromY] = emptySpace(fromX, fromY);
+			if (((board[fromX][fromY] == 'b' && toX == 0) || (board[fromX][fromY] == 'r' && toX == SIZE - 1))) {
+				setRoyal(toX, toY);
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+
+	// Checks if a move is valid
+	private boolean isMoveValid(int fromX, int fromY, int toX, int toY) {
+		boolean result = false;
+
+		// If valid index positions - within bounds
+		if (fromX < SIZE && toX < SIZE && fromY < SIZE && fromX < SIZE && fromX >= 0 && toX >= 0 && fromY >= 0
+				&& fromX >= 0) {
+			// If blacks move
+			if (whosMove == 'b') {
+				// If a normal piece
+				if (board[fromX][fromY] == 'b') {
+					// One square diagonal movement
+					if ((Math.abs(fromY - toY) == 1) && (toX - fromX == 1) && board[toX][toY] == emptySpace(toX, toY)) {
+						result = true;
+					}
+
+					// If skipping spaces over opponent's piece
+					if ((Math.abs(fromY - toY) == 2) && (toX - fromX == 2)
+							&& (board[toX - 1][(toY + fromY) / 2] == 'r' || board[toX - 1][(toY + fromY) / 2] == 'R')
+							&& board[toX][toY] == emptySpace(toX, toY)) {
+						board[toX - 1][(toY + fromY) / 2] = emptySpace(toX - 1, (toY + fromY) / 2);
+						redPieces--;
+						result = true;
+					}
+				}
+
+				// If a king piece
+				if (board[fromX][fromY] == 'B') {
+					// One square diagonal movement (both up and down)
+					if ((Math.abs(fromY - toY) == 1) && (Math.abs(toX - fromX) == 1)
+							&& board[toX][toY] == emptySpace(toX, toY)) {
+						result = true;
+					}
+
+					// If skipping spaces over opponent's piece (both up and down)
+					if ((Math.abs(fromY - toY) == 2) && (Math.abs(toX - fromX) == 2)
+							&& (board[(toX + fromX) / 2][(toY + fromY) / 2] == 'r'
+									|| board[(toX + fromX) / 2][(toY + fromY) / 2] == 'R')
+							&& board[toX][toY] == emptySpace(toX, toY)) {
+						board[(toX + fromX) / 2][(toY + fromY) / 2] = emptySpace((toX + fromX) / 2, (toY + fromY) / 2);
+						redPieces--;
+						result = true;
+					}
+				}
+
+				// If reds move
+			} else {
+				// If a normal piece
+				if (board[fromX][fromY] == 'r') {
+					// One square diagonal movement
+					if ((Math.abs(fromY - toY) == 1) && (fromX - toX == 1) && board[toX][toY] == emptySpace(toX, toY)) {
+						result = true;
+					}
+
+					// If skipping spaces over opponent's piece
+					if ((Math.abs(fromY - toY) == 2) && (fromX - toX == 2)
+							&& (board[toX + 1][(toY + fromY) / 2] == 'b' || board[toX + 1][(toY + fromY) / 2] == 'B')
+							&& board[toX][toY] == emptySpace(toX, toY)) {
+						board[toX + 1][(toY + fromY) / 2] = emptySpace(toX + 1, (toY + fromY) / 2);
+						blackPieces--;
+						result = true;
+					}
+				}
+
+				// If a king piece
+				if (board[fromX][fromY] == 'R') {
+					// One square diagonal movement (both up and down)
+					if ((Math.abs(fromY - toY) == 1) && (Math.abs(toX - fromX) == 1)
+							&& board[toX][toY] == emptySpace(toX, toY)) {
+						result = true;
+					}
+
+					// If skipping spaces over opponent's piece (both up and down)
+					if ((Math.abs(fromY - toY) == 2) && (Math.abs(toX - fromX) == 2)
+							&& (board[(toX + fromX) / 2][(toY + fromY) / 2] == 'b'
+									|| board[(toX + fromX) / 2][(toY + fromY) / 2] == 'B')
+							&& board[toX][toY] == emptySpace(toX, toY)) {
+						board[(toX + fromX) / 2][(toY + fromY) / 2] = emptySpace((toX + fromX) / 2, (toY + fromY) / 2);
+						blackPieces--;
+						result = true;
+					}
+				}
+			}
+		}
+
+		return result;
+	}
+
+	private boolean isMoveValidSkipOnly(int fromX, int fromY, int toX, int toY) {
+		boolean result = false;
+
+		// If valid index positions - within bounds
+		if (fromX < SIZE && toX < SIZE && fromY < SIZE && fromX < SIZE && fromX >= 0 && toX >= 0 && fromY >= 0
+				&& fromX >= 0) {
+			// If blacks move
+			if (whosMove == 'b') {
+				// If a normal piece
+				if (board[fromX][fromY] == 'b') {
+					// If skipping spaces over opponent's piece
+					if ((Math.abs(fromY - toY) == 2) && (toX - fromX == 2)
+							&& (board[toX - 1][(toY + fromY) / 2] == 'r' || board[toX - 1][(toY + fromY) / 2] == 'R')
+							&& board[toX][toY] == emptySpace(toX, toY)) {
+						board[toX - 1][(toY + fromY) / 2] = emptySpace(toX - 1, (toY + fromY) / 2);
+						redPieces--;
+						result = true;
+					}
+				}
+
+				// If a king piece
+				if (board[fromX][fromY] == 'B') {
+					// If skipping spaces over opponent's piece (both up and down)
+					if ((Math.abs(fromY - toY) == 2) && (Math.abs(toX - fromX) == 2)
+							&& (board[(toX + fromX) / 2][(toY + fromY) / 2] == 'r'
+									|| board[(toX + fromX) / 2][(toY + fromY) / 2] == 'R')
+							&& board[toX][toY] == emptySpace(toX, toY)) {
+						board[(toX + fromX) / 2][(toY + fromY) / 2] = emptySpace((toX + fromX) / 2, (toY + fromY) / 2);
+						redPieces--;
+						result = true;
+					}
+				}
+
+				// If reds move
+			} else {
+				// If a normal piece
+				if (board[fromX][fromY] == 'r') {
+					// If skipping spaces over opponent's piece
+					if ((Math.abs(fromY - toY) == 2) && (fromX - toX == 2)
+							&& (board[toX + 1][(toY + fromY) / 2] == 'b' || board[toX + 1][(toY + fromY) / 2] == 'B')
+							&& board[toX][toY] == emptySpace(toX, toY)) {
+						board[toX + 1][(toY + fromY) / 2] = emptySpace(toX + 1, (toY + fromY) / 2);
+						blackPieces--;
+						result = true;
+					}
+				}
+
+				// If a king piece
+				if (board[fromX][fromY] == 'R') {
+					// If skipping spaces over opponent's piece (both up and down)
+					if ((Math.abs(fromY - toY) == 2) && (Math.abs(toX - fromX) == 2)
+							&& (board[(toX + fromX) / 2][(toY + fromY) / 2] == 'b'
+									|| board[(toX + fromX) / 2][(toY + fromY) / 2] == 'B')
+							&& board[toX][toY] == emptySpace(toX, toY)) {
+						board[(toX + fromX) / 2][(toY + fromY) / 2] = emptySpace((toX + fromX) / 2, (toY + fromY) / 2);
+						blackPieces--;
+						result = true;
+					}
+				}
+			}
+		}
+
+		return result;
+	}
+
+	private boolean canMoveAgain(int x, int y) {
+		boolean result = false;
+
+		// diagonals: x-1:y-1, x-1:y+1, x+1:y-1, x+1:y+1
+
+		if (board[x][y] == 'b') {
+			if (x + 2 < SIZE && y - 2 < SIZE && x + 2 >= 0 && y - 2 >= 0
+					&& (board[x + 1][y - 1] == 'r' || board[x + 1][y - 1] == 'R')
+					&& board[x + 2][y - 2] == emptySpace(x + 2, y - 2)) {
+				result = true;
+			}
+
+			if (x + 2 < SIZE && y + 2 < SIZE && x + 2 >= 0 && y + 2 >= 0
+					&& (board[x + 1][y + 1] == 'r' || board[x + 1][y + 1] == 'R')
+					&& board[x + 2][y + 2] == emptySpace(x + 2, y + 2)) {
+				result = true;
+			}
+
+		} else if (board[x][y] == 'r') {
+			if (x - 2 < SIZE && y - 2 < SIZE && x - 2 >= 0 && y - 2 >= 0
+					&& (board[x - 1][y - 1] == 'b' || board[x - 1][y - 1] == 'B')
+					&& board[x - 2][y - 2] == emptySpace(x - 2, y - 2)) {
+				result = true;
+			}
+
+			if (x - 2 < SIZE && y + 2 < SIZE && x - 2 >= 0 && y + 2 >= 0
+					&& (board[x - 1][y + 1] == 'b' || board[x - 1][y + 1] == 'B')
+					&& board[x - 2][y + 2] == emptySpace(x - 2, y + 2)) {
+				result = true;
+			}
+
+		} else if (board[x][y] == 'B') {
+			if (x + 2 < SIZE && y - 2 < SIZE && x + 2 >= 0 && y - 2 >= 0
+					&& (board[x + 1][y - 1] == 'r' || board[x + 1][y - 1] == 'R')
+					&& board[x + 2][y - 2] == emptySpace(x + 2, y - 2)) {
+				result = true;
+			}
+
+			if (x + 2 < SIZE && y + 2 < SIZE && x + 2 >= 0 && y + 2 >= 0
+					&& (board[x + 1][y + 1] == 'r' || board[x + 1][y + 1] == 'R')
+					&& board[x + 2][y + 2] == emptySpace(x + 2, y + 2)) {
+				result = true;
+			}
+
+			if (x - 2 < SIZE && y - 2 < SIZE && x - 2 >= 0 && y - 2 >= 0
+					&& (board[x - 1][y - 1] == 'r' || board[x - 1][y - 1] == 'R')
+					&& board[x - 2][y - 2] == emptySpace(x - 2, y - 2)) {
+				result = true;
+			}
+
+			if (x - 2 < SIZE && y + 2 < SIZE && x - 2 >= 0 && y + 2 >= 0
+					&& (board[x - 1][y + 1] == 'r' || board[x - 1][y + 1] == 'R')
+					&& board[x - 2][y + 2] == emptySpace(x - 2, y + 2)) {
+				result = true;
+			}
+		} else { // if 'R'
+			if (x + 2 < SIZE && y - 2 < SIZE && x + 2 >= 0 && y - 2 >= 0
+					&& (board[x + 1][y - 1] == 'b' || board[x + 1][y - 1] == 'B')
+					&& board[x + 2][y - 2] == emptySpace(x + 2, y - 2)) {
+				result = true;
+			}
+
+			if (x + 2 < SIZE && y + 2 < SIZE && x + 2 >= 0 && y + 2 >= 0
+					&& (board[x + 1][y + 1] == 'b' || board[x + 1][y + 1] == 'B')
+					&& board[x + 2][y + 2] == emptySpace(x + 2, y + 2)) {
+				result = true;
+			}
+
+			if (x - 2 < SIZE && y - 2 < SIZE && x - 2 >= 0 && y - 2 >= 0
+					&& (board[x - 1][y - 1] == 'b' || board[x - 1][y - 1] == 'B')
+					&& board[x - 2][y - 2] == emptySpace(x - 2, y - 2)) {
+				result = true;
+			}
+
+			if (x - 2 < SIZE && y + 2 < SIZE && x - 2 >= 0 && y + 2 >= 0
+					&& (board[x - 1][y + 1] == 'b' || board[x - 1][y + 1] == 'B')
+					&& board[x - 2][y + 2] == emptySpace(x - 2, y + 2)) {
+				result = true;
+			}
+		}
+
+		return result;
+	}
+
+	// Sets a position to a "royal", ie. a king piece that can now move both
+	// forwards and backwards
+	private void setRoyal(int x, int y) {
+		if (board[x][y] == 'b')
+			board[x][y] = 'B';
+		else
+			board[x][y] = 'R';
+	}
+
+	// Checks if a side has won
+	private boolean gameOver() {
+		return (redPieces == 0) || (blackPieces == 0);
+	}
+
+	// Returns a String representing the winner of the game
+	private String getWinner() {
+		return redPieces == 0 ? "Black" : "Red";
+	}
+
+	// Returns the appropriate empty space value
+	private char emptySpace(int x, int y) {
+		if (x % 2 == 0 && y % 2 != 0)
+			return 49;
+		else if (x % 2 != 0 && y % 2 == 0)
+			return 49;
+		else
+			return 48;
 	}
 
 	// Helper method that returns the int index value of the row of the position
@@ -97,68 +447,9 @@ public class Checkers {
 	// Helper method that returns the int index value of the column of the
 	// position given.
 	private int getY(String position) {
-		return position.charAt(0) - 65;
-	}
-
-	// Checks if a move is valid
-	// Only valid if the piece is moved from an occupied space to an empty space.
-	private boolean isMoveValid(String from, String moveTo) {
-		int fromX = getX(from);
-		int fromY = getY(from);
-		int toX = getX(moveTo);
-		int toY = getY(moveTo);
-
-		// If valid index positions - within bounds
-		if (fromX < board.length && toX < board.length && fromY < SIZE - 1 && fromX < SIZE - 1) {
-			// for regular piece -only if row increases or decreases
-			// Checks that row changed by 1
-			if (Math.abs(fromY - toY) == 1) {
-				if (whosMove == 'b' && board[fromX][fromY] == 'b' && (fromX - toX == 1)) {
-
-				} else if (whosMove == 'r' && board[fromX][fromY] == 'r' && (fromX - toX == -1)) {
-
-				}
-			}
-
-			// For royal - doesn't matter
-
-			// If to immediate diagonal space
-			// Or If to 2-space diagonal AND immediate diagonal is enemy piece
-
-			// Then run changeToRoyal()
-		}
-
-		return (board[toX][toY] == '1' && (board[fromX][fromY] == 'b' || board[fromX][fromY] == 'r'));
-	}
-
-//	private int doesSkipSpace() {
-//
-//	}
-
-	private boolean gameOver() {
-		return (redPieces == 0) || (blackPieces == 0);
-	}
-
-	private String getWinner() {
-		return redPieces == 0 ? "Black" : "Red";
-	}
-
-	private char emptySpace(int x, int y) {
-		if (x % 2 == 0 && y % 2 != 0)
-			return 49;
-		else if (x % 2 != 0 && y % 2 == 0)
-			return 49;
+		if (Character.isUpperCase(position.charAt(1)))
+			return position.charAt(0) - 65;
 		else
-			return 48;
+			return position.charAt(0) - 97;
 	}
-
-	public static void main(String[] args) {
-		Checkers game = new Checkers();
-		while (!game.gameOver()) {
-			game.makeMove("B3", "C4");
-		}
-
-		System.out.println(game.getWinner() + " is the winner.");
-	}
-
 }
